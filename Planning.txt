@@ -1,0 +1,520 @@
+﻿Github link: BrandonTroy/scientific-paper-summarization
+
+
+* Apply extractive and abstractive methods to generate summaries of abstracts
+* We will use the dataset here https://www.kaggle.com/datasets/sumitm004/arxiv-scientific-research-papers-dataset which contains the title and abstracts from around 130,000 scientific papers along with a label describing the subject category
+* For abstractive methods, we will use pre-trained LLMs to generate the summaries
+* For extractive methods, we can apply a variety of NLP ideas. These include selecting the most relevant sentences from the text, removing stopwords, etc.
+* We brainstormed some methods for evaluating the quality of the generated summaries. There are some numerical methods (ROGUE) that appear in the literature. Alternatively, we can  compare the cosine distance from the summary embeddings vs the abstract embeddings to compute its quality.
+
+
+Hypotheses: …
+
+
+More Precise Plan
+1. Data collection
+   1. Dataset
+   2. Number of records, sampling technique, etc.
+2. Preprocessing
+   1. …
+3. Methods
+   1. …
+4. Analysis
+   1. …
+
+
+
+
+________________
+
+
+1. What problem are you addressing? – Planning
+Core problem (final phrasing later):
+ Given a scientific abstract, generate a much shorter summary that preserves the key contributions and topic, and compare extractive vs. abstractive methods—both in terms of automatic metrics and semantic similarity to the original abstract.
+1.1 Scope choices
+* Input: Only use abstracts (not full papers) from the Kaggle arXiv dataset (title, abstract, subject category). Kaggle+1
+
+* Output: Short summaries such as:
+
+   * Option A: Fixed length, e.g., 1–3 sentences or ~50–70 tokens.
+
+   * Option B: Relative compression, e.g., 20–30% of original abstract length.
+
+      * Task type:
+
+         * Main: Single-document summarization of individual abstracts.
+
+         * Optional extension: Compare “summary of abstract” vs “summary of title+abstract”.
+
+1.2 Hypotheses (to refine later in R3 text)
+You can plan on having 2–3 hypotheses like:
+            1. H1 (Abstractive quality): Abstractive LLM-based summaries will score higher on semantic similarity (embedding-based metrics, human judgments) than purely extractive methods, for the same length budget.
+
+            2. H2 (Extractive robustness): Extractive methods will achieve competitive ROUGE scores while being much cheaper and simpler than LLM-based methods.
+
+            3. H3 (Subject-category differences): Performance and preferred method (extractive vs. abstractive) differ by discipline (e.g., CS vs. Math vs. Physics), due to differences in writing style and jargon.
+
+________________
+
+
+2. Why is this problem important? – Planning
+You don’t need much planning here, but you can anchor on:
+               * Explosion of scientific literature → researchers need fast overviews.
+
+               * Abstracts are already summaries, but often long and dense.
+
+               * Comparing extractive vs. abstractive methods gives insight into:
+
+                  * When classic NLP is “good enough.”
+
+                  * Where modern LLMs justify their cost/complexity.
+
+You can also link to broader themes: information overload, accessibility of research, aiding non-specialists.
+________________
+
+
+3. How will you address this problem? – Detailed Plan (the big one)
+3.1 Data & preprocessing
+Dataset:
+                     * Use the Kaggle “ArXiv Scientific Research Papers” dataset (titles, summaries/abstracts, categories, metadata). Kaggle+1
+
+Pipeline steps:
+                        1. Data loading & cleaning
+
+                           * Remove rows with:
+
+                              * Missing or extremely short abstracts (e.g., < 30 words).
+
+                              * Non-English texts (if any: simple heuristic like langdetect).
+
+                                 * Normalize whitespace, remove strange characters.
+
+                                    2. Filtering strategies (decision point)
+
+                                       * Option A: Use all categories – more variety, but noisier.
+
+                                       * Option B: Focus on a few high-volume categories, e.g.:
+
+                                          * cs.* (Computer Science)
+
+                                          * math., physics.
+ This reduces domain variability, makes qualitative evaluation easier.
+
+                                             3. Splitting
+
+                                                * Train/validation/test split (e.g., 80/10/10), stratified by category.
+
+                                                * Consider also a small dev set (e.g., 500 abstracts) for quick iteration.
+
+                                                   4. Text preprocessing (for extractive models)
+
+                                                      * Sentence segmentation (spaCy / NLTK / HuggingFace tokenizers).
+
+                                                      * Tokenization & lowercasing (when needed).
+
+                                                      * Stopword lists for TF-IDF, TextRank-style methods.
+
+________________
+
+
+3.2 System architecture (overall)
+You can outline a common pipeline:
+Abstract → Preprocessing → Summarization module (extractive vs. abstractive) → Post-processing (length control, cleaning) → Evaluation → Results database / CSV
+Implementation stack options:
+                                                         * Base stack: Python, PyTorch, HuggingFace Transformers, sentence-transformers, scikit-learn.
+
+                                                         * Execution environment:
+
+                                                            * Option A: Kaggle Notebooks / Colab (easy GPU access).
+
+                                                            * Option B: Local machine + NCSU cluster (if available).
+
+________________
+
+
+3.3 Extractive summarization track – Options
+Plan at least 3 extractive baselines + 1 more sophisticated option.
+3.3.1 Baseline 0: Lead-k
+                                                               * Idea: Take the first k sentences from the abstract (e.g., k=1 or 2).
+
+                                                               * Motivation: Many abstracts use “importance-first” structure; this is a common baseline in summarization literature. Wikipedia
+
+                                                               * Parameters to vary:
+
+                                                                  * k ∈ {1,2,3}
+
+                                                                  * Possibly category-specific k.
+
+3.3.2 Baseline 1: TF-IDF-based sentence scoring
+                                                                     * Represent each sentence as a bag-of-words vector.
+
+                                                                     * Compute TF-IDF weights over the corpus.
+
+                                                                     * Score each sentence by:
+
+                                                                        * Option A: Sum of TF-IDF scores.
+
+                                                                        * Option B: Cosine similarity between sentence vector and full-abstract vector.
+
+                                                                           * Select top k sentences under a length budget (greedy).
+
+3.3.3 Baseline 2: Graph-based ranking (TextRank / LexRank)
+                                                                              * Build a graph where:
+
+                                                                                 * Nodes = sentences.
+
+                                                                                 * Edges weighted by similarity (cosine TF-IDF or embeddings).
+
+                                                                                    * Run PageRank-like algorithm to score sentence importance.
+
+                                                                                    * Select top sentences until hitting length limit.
+
+Sub-options:
+                                                                                       * Similarity method: TF-IDF vs. sentence embeddings.
+
+                                                                                       * Redundancy control: Maximal Marginal Relevance (MMR) to avoid selecting very similar sentences.
+
+3.3.4 Advanced: Neural extractive model
+If time/compute permits, plan a stretch goal:
+                                                                                          * Use a pre-trained transformer (e.g., bert-base-uncased) to get sentence embeddings; train a small classifier/regressor to mark sentences as “summary-worthy” vs. not.
+
+                                                                                          * Label generation:
+
+                                                                                             * Heuristic pseudo-labels from ROUGE overlap with a reference (e.g., LLM-generated summary or Lead-k).
+
+                                                                                             * Or use unsupervised thresholds (e.g., pick top sentences that best reconstruct abstract embedding).
+
+You can mark this as:
+Stretch Goal: Only implement if earlier baselines and abstractive methods are done.
+________________
+
+
+3.4 Abstractive summarization track – Options
+Design this in escalating complexity:
+3.4.1 Option A: Pure prompt-based LLM (no fine-tuning)
+                                                                                                * Use a pre-trained LLM to summarize abstracts directly:
+
+                                                                                                   * Sub-option A1: API-based model (e.g., GPT-4.1 / GPT-4o, Claude, etc.).
+
+                                                                                                   * Sub-option A2: Open-source model via HuggingFace (e.g., BART-large-CNN, T5-small/large, PEGASUS) run locally.
+
+                                                                                                      * Prompt template (for APIs / chat models):
+
+                                                                                                         * Instruction: “Summarize the following scientific abstract into 1–2 sentences (~50 words), preserving the main problem, method, and contribution.”
+
+                                                                                                         * Variants:
+
+                                                                                                            * Style: “very concise”, “for a non-expert”, “for an expert”.
+
+                                                                                                            * Length constraints: tokens vs. sentences.
+
+You can treat this as Abstractive Baseline.
+3.4.2 Option B: Pre-trained summarization models (no additional training)
+                                                                                                               * Models: BART (e.g., facebook/bart-large-cnn), T5 (t5-base), PEGASUS (google/pegasus-arxiv if available). Wikipedia
+
+                                                                                                               * Input: Abstract (possibly truncated to model’s max length).
+
+                                                                                                               * Output: Generated summary using standard generation parameters:
+
+                                                                                                                  * Beam search vs. sampling.
+
+                                                                                                                  * Length penalty and max_length/min_length.
+
+Treat each model as a separate condition in your experiment matrix.
+3.4.3 Option C: Fine-tuning a small model (optional)
+This may or may not be feasible, but you can still plan it:
+                                                                                                                     * Fine-tune a small transformer (e.g., t5-small/t5-base) to map abstract → shorter summary (possibly using your own “silver” labels).
+
+                                                                                                                     * Label strategies:
+
+                                                                                                                        * Use Lead-k sentences as pseudo “targets”.
+
+                                                                                                                        * Use a stronger LLM’s output as “synthetic reference summaries” for a subset (distillation).
+
+                                                                                                                           * Training details:
+
+                                                                                                                              * Train on subset (e.g., 10k–20k abstracts) due to time/compute.
+
+                                                                                                                              * Evaluate on held-out test set with ROUGE and embeddings.
+
+Mark as:
+Advanced Option: Implement only if API-based and pre-trained models are done.
+________________
+
+
+3.5 Evaluation framework – Multi-option plan
+You already mentioned ROUGE and embedding-based cosine similarity; let’s formalize.
+3.5.1 Automatic metrics
+                                                                                                                                 1. ROUGE family Wikipedia+2ACL Anthology+2
+
+                                                                                                                                    * Use ROUGE-1, ROUGE-2, ROUGE-L:
+
+                                                                                                                                       * ROUGE-1/2: n-gram overlap, good for content coverage.
+
+                                                                                                                                       * ROUGE-L: longest common subsequence, sensitive to sequence order.
+
+                                                                                                                                          * Since you won’t have human references, you need to define what to compare against:
+
+                                                                                                                                             * Option A: Compare summary to original abstract (treat abstract as “reference” → measures how much original info is covered).
+
+                                                                                                                                             * Option B: For a subset, create human-written or LLM-generated “reference summaries” and use those.
+
+                                                                                                                                                2. Embedding-based semantic similarity
+
+                                                                                                                                                   * Use sentence embeddings (e.g., Sentence-BERT / other transformer embeddings).
+
+                                                                                                                                                   * For each abstract-summary pair, compute:
+
+                                                                                                                                                      * Cosine similarity between:
+
+                                                                                                                                                         * Mean embedding of abstract vs. mean embedding of summary.
+
+                                                                                                                                                         * Or CLS tokens, depending on model.
+
+                                                                                                                                                            * Possibly compute layered metrics:
+
+                                                                                                                                                               * Content similarity (abstract vs. summary).
+
+                                                                                                                                                               * Cross-comparison (e.g., extractive vs. abstractive for same abstract).
+
+                                                                                                                                                                  3. Other metrics (optional)
+
+                                                                                                                                                                     * BERTScore: semantic similarity metric often used for summarization.
+
+                                                                                                                                                                     * Novelty/abstraction rates:
+
+                                                                                                                                                                        * Percentage of summary tokens not present in source abstract (for abstractive models).
+
+                                                                                                                                                                           4. Descriptive stats
+
+                                                                                                                                                                              * Compression ratio: |summary| / |abstract|.
+
+                                                                                                                                                                              * Redundancy: e.g., number of repeated n-grams in summary.
+
+3.5.2 Human evaluation (small-scale but important)
+Design a compact human evaluation:
+                                                                                                                                                                                 * Sample e.g. 50–100 abstracts across categories and lengths.
+
+                                                                                                                                                                                 * For each, gather 2–4 summaries (Lead-k, TF-IDF, LLM, BART).
+
+                                                                                                                                                                                 * Have 3–5 human judges rate on Likert scales (1–5):
+
+                                                                                                                                                                                    * Relevance / Coverage.
+
+                                                                                                                                                                                    * Coherence / Fluency.
+
+                                                                                                                                                                                    * Faithfulness (no hallucinations/misrepresentations).
+
+                                                                                                                                                                                       * Optional: Pairwise preferences:
+
+                                                                                                                                                                                          * “Which summary would you prefer to read first?”
+
+This gives you material for the “How did you evaluate your approach?” and “Findings” sections.
+________________
+
+
+3.6 Experiment design / comparison matrix
+Plan a matrix of conditions:
+                                                                                                                                                                                             1. Methods:
+
+                                                                                                                                                                                                * Extractive:
+
+                                                                                                                                                                                                   * Lead-1, Lead-2.
+
+                                                                                                                                                                                                   * TF-IDF sentence scoring.
+
+                                                                                                                                                                                                   * TextRank/LexRank.
+
+                                                                                                                                                                                                      * Abstractive:
+
+                                                                                                                                                                                                         * LLM API (prompt-based).
+
+                                                                                                                                                                                                         * BART / T5 / PEGASUS (no fine-tune).
+
+                                                                                                                                                                                                         * Optional fine-tuned small model.
+
+                                                                                                                                                                                                            2. Length conditions:
+
+                                                                                                                                                                                                               * 1 sentence (~25–35 tokens).
+
+                                                                                                                                                                                                               * 2 sentences (~50–70 tokens).
+
+                                                                                                                                                                                                               * Flexible: 20–30% of original length.
+
+                                                                                                                                                                                                                  3. Category strata:
+
+                                                                                                                                                                                                                     * CS vs. Physics vs. Others, to test H3.
+
+                                                                                                                                                                                                                        4. Abstract length buckets:
+
+                                                                                                                                                                                                                           * Short, medium, long abstracts.
+
+For each combination, compute ROUGE + embedding similarity; produce tables and maybe plots (ROUGE vs. cosine vs. compression).
+________________
+
+
+3.7 Implementation & demo plan
+Code organization:
+                                                                                                                                                                                                                              * data/ – download & caching scripts.
+
+                                                                                                                                                                                                                              * preprocess/ – cleaning, sentence splitting.
+
+                                                                                                                                                                                                                              * models/
+
+                                                                                                                                                                                                                                 * extractive/ – Lead-k, TF-IDF, TextRank.
+
+                                                                                                                                                                                                                                 * abstractive/ – wrappers around LLM API + HF models.
+
+                                                                                                                                                                                                                                    * eval/ – ROUGE, embeddings, human eval tools.
+
+                                                                                                                                                                                                                                    * experiments/ – scripts that run full pipelines and save results to CSV.
+
+                                                                                                                                                                                                                                    * notebooks/ – exploratory analysis & visualizations.
+
+Demo idea (for R3 presentation):
+                                                                                                                                                                                                                                       * A small web or notebook demo:
+
+                                                                                                                                                                                                                                          * Input box: paste an abstract.
+
+                                                                                                                                                                                                                                          * Dropdown: choose method (Lead, TF-IDF, TextRank, BART, GPT-4, etc.).
+
+                                                                                                                                                                                                                                          * Output: generated summary + key metrics (ROUGE vs. abstract, cosine similarity, compression ratio).
+
+                                                                                                                                                                                                                                          * Optional: side-by-side comparison of methods.
+
+________________
+
+
+4. Alternatives & justifications – Planning
+You’ll need to discuss what you could have done vs what you chose. Here’s a menu.
+4.1 Alternative tasks
+                                                                                                                                                                                                                                             * Alternative 1: Full-paper summarization
+
+                                                                                                                                                                                                                                                * Reason to not choose: PDF parsing, section segmentation, compute cost, and more complex evaluation.
+
+                                                                                                                                                                                                                                                   * Alternative 2: Title generation (headline summarization)
+
+                                                                                                                                                                                                                                                      * Could be an extension: generate titles from abstracts and compare with real titles (ROUGE/embeddings).
+
+                                                                                                                                                                                                                                                         * Alternative 3: Keyword extraction
+
+                                                                                                                                                                                                                                                            * Complementary task, but may dilute focus.
+
+4.2 Alternative datasets
+                                                                                                                                                                                                                                                               * Other arXiv-based datasets with introductions, conclusions, etc. Kaggle+1
+
+                                                                                                                                                                                                                                                               * Justification for your choice:
+
+                                                                                                                                                                                                                                                                  * The specific Kaggle dataset is clean, has titles/abstracts/categories and is manageable for a class project.
+
+4.3 Alternative evaluation metrics / frameworks
+                                                                                                                                                                                                                                                                     * Beyond ROUGE: BLEU, METEOR, newer semantic metrics like ROUGE-SEM, WIDAR, or ROUGE-K that try to incorporate semantics or keyword importance. arXiv+3ScienceDirect+3arXiv+3
+
+                                                                                                                                                                                                                                                                     * Justification:
+
+                                                                                                                                                                                                                                                                        * For the scope of an NLP course project, classical ROUGE + embeddings + limited human eval is usually sufficient and easy to implement.
+
+4.4 Why your approach is reasonable
+                                                                                                                                                                                                                                                                           * Balances:
+
+                                                                                                                                                                                                                                                                              * Classic NLP (TF-IDF, TextRank, ROUGE)
+
+                                                                                                                                                                                                                                                                              * Modern deep learning (transformers, LLMs, embeddings)
+
+                                                                                                                                                                                                                                                                                 * Scalable to 130k+ abstracts but still feasible with subsampling.
+
+                                                                                                                                                                                                                                                                                 * Allows interesting comparisons and ablations.
+
+________________
+
+
+5. How did you / will you evaluate your approach? – Planning
+You’ll later narrate this, but planning-wise:
+5.1 Automatic evaluation plan
+                                                                                                                                                                                                                                                                                    * For each method & configuration:
+
+                                                                                                                                                                                                                                                                                       * Compute ROUGE-1/2/L between summary and abstract.
+
+                                                                                                                                                                                                                                                                                       * Compute embedding cosine similarity (Sentence-BERT).
+
+                                                                                                                                                                                                                                                                                       * Capture compression ratio.
+
+                                                                                                                                                                                                                                                                                          * Aggregate results:
+
+                                                                                                                                                                                                                                                                                             * Per method, per category, per length bucket.
+
+                                                                                                                                                                                                                                                                                             * Visualize:
+
+                                                                                                                                                                                                                                                                                                * Boxplots or histograms of scores.
+
+                                                                                                                                                                                                                                                                                                * Method vs. ROUGE vs. cosine scatter plots.
+
+5.2 Human evaluation plan
+                                                                                                                                                                                                                                                                                                   * Sampling strategy:
+
+                                                                                                                                                                                                                                                                                                      * Randomly sample ~50 abstracts, ensuring balanced categories and lengths.
+
+                                                                                                                                                                                                                                                                                                         * Evaluate:
+
+                                                                                                                                                                                                                                                                                                            * For each abstract, show 3–4 randomly ordered summaries.
+
+                                                                                                                                                                                                                                                                                                            * Ask annotators (classmates, team members) to rate/choose best.
+
+                                                                                                                                                                                                                                                                                                               * Analysis:
+
+                                                                                                                                                                                                                                                                                                                  * Inter-annotator agreement (roughly).
+
+                                                                                                                                                                                                                                                                                                                  * Compare human preferences vs. ROUGE/embedding metrics:
+
+                                                                                                                                                                                                                                                                                                                     * E.g., do humans prefer summaries with higher cosine similarity but slightly lower ROUGE?
+
+5.3 Use cases / stakeholders (for R3 narrative)
+                                                                                                                                                                                                                                                                                                                        * Stakeholders:
+
+                                                                                                                                                                                                                                                                                                                           * Researchers wanting quick skims of papers.
+
+                                                                                                                                                                                                                                                                                                                           * Students exploring literature.
+
+                                                                                                                                                                                                                                                                                                                           * Non-experts wanting accessible summaries.
+
+                                                                                                                                                                                                                                                                                                                              * How they’re affected:
+
+                                                                                                                                                                                                                                                                                                                                 * Faster triage of papers.
+
+                                                                                                                                                                                                                                                                                                                                 * Risk: abstractive models may hallucinate or oversimplify; you can discuss that under ethics.
+
+________________
+
+
+6. Main findings & implications – Planning the analysis you’ll do
+You can’t know the findings yet, but you can plan what kinds of claims you’ll be ready to make:
+                                                                                                                                                                                                                                                                                                                                    * Whether simple extractive baselines (Lead-k, TextRank) are competitive with LLMs on ROUGE vs. abstract.
+
+                                                                                                                                                                                                                                                                                                                                    * Whether embedding similarity correlates better with human judgment than ROUGE alone.
+
+                                                                                                                                                                                                                                                                                                                                    * Differences in performance across scientific domains.
+
+                                                                                                                                                                                                                                                                                                                                    * Trade-offs:
+
+                                                                                                                                                                                                                                                                                                                                       * Cost and latency (LLMs) vs. simplicity (extractive).
+
+                                                                                                                                                                                                                                                                                                                                       * Abstraction/novelty vs. faithfulness.
+
+Ethical/impact angles you can plan to discuss:
+                                                                                                                                                                                                                                                                                                                                          * Potential benefits:
+
+                                                                                                                                                                                                                                                                                                                                             * Accessibility of research; time saved; aid for non-native speakers.
+
+                                                                                                                                                                                                                                                                                                                                                * Potential harms:
+
+                                                                                                                                                                                                                                                                                                                                                   * Misrepresentation of scientific claims by abstractive models.
+
+                                                                                                                                                                                                                                                                                                                                                   * Over-reliance on summaries; missing nuance, limitations, caveats.
+
+                                                                                                                                                                                                                                                                                                                                                      * Mitigation ideas:
+
+                                                                                                                                                                                                                                                                                                                                                         * Always link summaries back to the full abstract/paper.
+
+                                                                                                                                                                                                                                                                                                                                                         * Use conservative prompts (“avoid speculation”, “don’t add information not in the abstract”).
+
+                                                                                                                                                                                                                                                                                                                                                         * Encourage humans-in-the-loop for critical decisions.
